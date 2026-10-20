@@ -1,0 +1,45 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BasketWise AI</title>
+<style>*{box-sizing:border-box}body{font-family:Inter,system-ui,'Segoe UI',sans-serif;background:radial-gradient(1200px 600px at 20% -10%,#232a3b,#12141a);color:#e8eaf0;max-width:1040px;margin:0 auto;padding:24px 14px 50px;min-height:100vh}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}h1{font-size:30px;margin:0}h1 span,a.on{color:#ff7a50}.sub{color:#8d96a8;margin:4px 0 16px}
+nav a{color:#aab2c5;text-decoration:none;margin-left:16px;font-weight:600}nav a:hover{color:#fff}h3{margin:0 0 10px;font-size:16px;color:#cfd5e3}
+.c{background:#1a1e29;border:1px solid #272e3e;border-radius:14px;padding:16px;margin-top:14px;box-shadow:0 8px 24px rgba(0,0,0,.25)}.row{display:flex;gap:16px;flex-wrap:wrap}.row>.c{flex:1;min-width:300px}
+.controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap}input[type=number],input[type=text]{background:#12151c;color:#e8eaf0;border:1px solid #3a4152;border-radius:8px;padding:9px 10px;font-size:14px}
+input[type=number]{width:100px}input[type=text]{width:100%}.chip input{display:none}.chip span{display:inline-block;padding:6px 12px;margin:2px;border-radius:999px;border:1px solid #3a4152;cursor:pointer;color:#aab2c5;font-size:13px;text-transform:capitalize}
+.chip input:checked+span{background:#ff7a50;border-color:#ff7a50;color:#fff}button.go{background:#ff7a50;color:#fff;border:0;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600}button.go:hover{background:#ff8f6b}
+canvas{width:100%;border-radius:8px;background:#12151c}ol{padding-left:22px;margin:0}li,.hit{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid #232a38}li .pr,.hit .pr{margin-left:auto;font-weight:700;color:#ff7a50}.hit span.s{flex:0}
+.s{color:#8d96a8;font-size:13px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;margin-top:14px}.st{background:#1a1e29;border:1px solid #272e3e;border-radius:12px;padding:12px}
+.st .l{color:#8d96a8;font-size:12px;text-transform:uppercase;letter-spacing:.05em}.st .v{font-size:26px;font-weight:700}.st .s{font-size:12px}#err{color:#ff6b6b;margin-top:12px;font-weight:600}
+table{border-collapse:collapse;margin-right:30px}th,td{padding:6px 14px;border-bottom:1px solid #272e3e;text-align:left}.legend{margin-top:8px}</style></head><body>
+<header><h1>BasketWise <span>AI</span></h1><nav><a class="on" href="/">Planner</a><a href="/lab">Algorithm Lab</a></nav></header>
+<p class="sub">Smart shopping decisions within your budget.</p>
+<div class="c controls"><label>Budget <input id="b" type="number" min="0" max="2000" value="300"></label><div id="cats"></div><button class="go" onclick="run()">Plan my basket</button></div>
+<div class="c"><h3>Search products</h3><input id="q" type="text" placeholder="Type a product name, e.g. ch" oninput="srch()"><div id="sr"></div></div>
+<div id="err"></div>
+<div class="row"><div class="c"><h3>Store map &amp; shortest route</h3><canvas id="cv" width="600" height="300"></canvas>
+<div class="s legend">Blue = entrance · Orange numbers = pickup order · Grey dots = other products</div></div>
+<div class="c"><h3>Your basket</h3><div id="lst" class="s">Press “Plan my basket” to start.</div></div></div>
+<div class="stats" id="stats"></div>
+<div class="c"><h3>Algorithm benchmarks (C++ engine)</h3><button class="go" onclick="benchRun()">Run benchmarks</button><div id="bn" style="margin-top:12px"></div></div>
+<script>
+const C=['dairy','bakery','grocery','meat','produce','drinks','snacks'],S=30;
+cats.innerHTML=C.map(c=>`<label class="chip"><input type="checkbox" value="${c}"><span>${c}</span></label>`).join('');
+async function api(u){const r=await fetch(u),d=await r.json();if(d.error)throw new Error(d.error);return d;}
+async function run(){err.textContent='';try{const ch=[...document.querySelectorAll('#cats input:checked')].map(x=>x.value).join(',')||'-';
+ const d=await api(`/api/plan?budget=${encodeURIComponent(b.value||0)}&cats=${ch}`);draw(d);show(d);}catch(e){err.textContent=e.message;}}
+const st=(l,v,s='')=>`<div class="st"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+function show(d){const pct=d.dpValue?Math.round(100*d.gaValue/d.dpValue):0;
+ stats.innerHTML=st('Total spent',d.total,'of '+(b.value||0))+st('Items',d.basket.length)+st('Knapsack DP',d.dpValue,'optimal')+st('Greedy',d.greedyValue,d.greedyCount+' items')+st('Genetic',d.gaValue,pct+'% of optimal')+st('Route steps',d.steps,'nearest-neighbor '+d.nnSteps+' → 2-opt')+st('A* nodes',d.expanded,'whole route');
+ lst.innerHTML=d.basket.length?'<ol>'+d.order.map(id=>{const p=d.basket.find(x=>x.id==id);return `<li><b>${p.name}</b><span class="s">${p.cat}</span><span class="pr">${p.price}</span></li>`;}).join('')+'</ol>':'No items fit within this budget.';}
+function draw(d){const g=cv.getContext('2d');g.clearRect(0,0,600,300);
+ d.grid.forEach((r,y)=>[...r].forEach((c,x)=>{g.fillStyle=c=='#'?'#59524a':'#262b36';g.fillRect(x*S,y*S,S-1,S-1);}));
+ g.strokeStyle='#ff7a50';g.lineWidth=3;g.beginPath();d.path.forEach(([x,y],i)=>i?g.lineTo(x*S+15,y*S+15):g.moveTo(x*S+15,y*S+15));g.stroke();
+ d.grid.forEach((r,y)=>{const x=r.indexOf('E');if(x>=0){g.fillStyle='#4ad';g.fillRect(x*S+6,y*S+6,18,18);}});
+ g.font='bold 12px sans-serif';d.ranked.forEach(p=>{const i=d.order.indexOf(p.id);g.fillStyle=i>=0?'#ff7a50':'#777';g.beginPath();g.arc(p.x*S+15,p.y*S+15,i>=0?10:4,0,7);g.fill();
+  if(i>=0){g.fillStyle='#fff';g.fillText(i+1,p.x*S+(i>8?9:12),p.y*S+19);}});}
+let tm;function srch(){clearTimeout(tm);tm=setTimeout(async()=>{const v=q.value.trim();if(!v){sr.innerHTML='';return;}
+ try{const r=await api('/api/search?q='+encodeURIComponent(v));sr.innerHTML=r.length?r.map(p=>`<div class="hit"><b>${p.name}</b><span class="s">${p.cat} · aisle (${p.x},${p.y})</span><span class="pr">${p.price}</span></div>`).join(''):'<p class="s">No product starts with that text.</p>';}catch(e){err.textContent=e.message;}},200);}
+async function benchRun(){try{const d=await api('/api/bench'),f=x=>Math.max(0,x).toFixed(2);
+ bn.innerHTML=`<div class="row" style="gap:10px"><table><tr><th>Sort n<th>Merge ms<th>Quick ms</tr>${d.sort.map(r=>`<tr><td>${r.n}<td>${f(r.merge)}<td>${f(r.quick)}`).join('')}</table>
+ <table><tr><th>Knapsack (200 items)<th>Value<th>ms</tr><tr><td>DP (optimal)<td>${d.knap.dp[0]}<td>${f(d.knap.dp[1])}<tr><td>Greedy<td>${d.knap.greedy[0]}<td>${f(d.knap.greedy[1])}<tr><td>Genetic<td>${d.knap.ga[0]}<td>${f(d.knap.ga[1])}</table>
+ <table><tr><th>Shortest path<th>Nodes expanded</tr><tr><td>A*<td>${d.path.astar}<tr><td>Dijkstra<td>${d.path.dijkstra}</table></div>`;}catch(e){err.textContent=e.message;}}
+</script></body></html>
